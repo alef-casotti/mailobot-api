@@ -9,7 +9,8 @@ Infraestrutura de coleta e automação de dados para descobrir leads qualificado
 - Redis
 - PM2 (opcional, para produção)
 
-> **Ubuntu 24.04:** Guia completo de instalação em [docs/INSTALACAO-UBUNTU-24.04.md](docs/INSTALACAO-UBUNTU-24.04.md)
+> **Ubuntu 24.04:** Guia completo de instalação em [docs/INSTALACAO-UBUNTU-24.04.md](docs/INSTALACAO-UBUNTU-24.04.md)  
+> **Deploy automático:** Configuração do CI/CD em [docs/DEPLOY.md](docs/DEPLOY.md)
 
 ## Instalação
 
