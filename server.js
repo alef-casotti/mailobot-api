@@ -9,7 +9,7 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'mailobot' });
+  res.json({ status: 'ok', service: 'mailobot', version: "1.0.0" });
 });
 
 app.use('/campaigns', campaignApi);
