@@ -1,0 +1,36 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    name: Deploy to production
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          port: ${{ secrets.DEPLOY_PORT || 22 }}
+          script: |
+            set -e
+            cd ${{ secrets.DEPLOY_PATH || '~/mailobot' }}
+            echo ">>> Pulling latest changes..."
+            git fetch origin
+            git reset --hard origin/main
+            echo ">>> Installing dependencies..."
+            npm ci --omit=dev
+            echo ">>> Installing Playwright Chromium..."
+            npx playwright install chromium
+            echo ">>> Running migrations..."
+            npm run migrate
+            echo ">>> Restarting PM2 processes..."
+            pm2 reload ecosystem.config.js --update-env
+            pm2 save
+            echo ">>> Deploy completed successfully!"
