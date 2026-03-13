@@ -1,0 +1,63 @@
+{
+  "//": "Configuração de segurança OpenClaw para o projeto mailobot",
+  "//": "Use: OPENCLAW_CONFIG_PATH=./config/openclaw.json openclaw gateway",
+  "//": "Caminhos sensíveis (~/.ssh, ~/.aws, ~/.config, ~/.gnupg, ~/.kube, /etc) não são montados no sandbox",
+  "//": "Para permitir edição de código: altere workspaceAccess para 'rw' e adicione write, edit, apply_patch em tools.allow",
+
+  "agents": {
+    "defaults": {
+      "workspace": ".",
+      "sandbox": {
+        "mode": "all",
+        "scope": "session",
+        "workspaceAccess": "ro"
+      }
+    }
+  },
+
+  "tools": {
+    "allow": [
+      "read",
+      "web_search",
+      "web_fetch",
+      "sessions_list",
+      "session_status"
+    ],
+    "deny": [
+      "write",
+      "edit",
+      "apply_patch",
+      "exec",
+      "bash",
+      "process",
+      "gateway",
+      "group:nodes",
+      "group:memory"
+    ],
+    "exec": {
+      "security": "deny"
+    },
+    "elevated": {
+      "enabled": false
+    },
+    "sandbox": {
+      "tools": {
+        "allow": [
+          "read",
+          "web_search",
+          "web_fetch",
+          "sessions_list",
+          "session_status"
+        ],
+        "deny": [
+          "write",
+          "edit",
+          "apply_patch",
+          "group:runtime",
+          "group:memory",
+          "group:nodes"
+        ]
+      }
+    }
+  }
+}
