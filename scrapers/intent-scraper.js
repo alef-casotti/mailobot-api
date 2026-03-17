@@ -26,11 +26,13 @@ function scoreIntent(signals) {
 
 /**
  * Busca publicações por hashtags e extrai usuários engajados
- * @param {object} options - { hashtags, limit }
+ * @param {object} options - { hashtags, limit, excludeIdentifiers }
  * @returns {Promise<Array<{nome, instagram, seguidores, pontuacao, origem}>>}
  */
 async function discoverIntentLeads(options) {
-  const { hashtags = [], limit = 10 } = options;
+  const { hashtags = [], limit = 10, excludeIdentifiers = {} } = options;
+
+  const excludeInstagrams = excludeIdentifiers.instagrams || new Set();
 
   const browser = await chromium.launch({ headless: HEADLESS });
   const context = await browser.newContext({
@@ -80,6 +82,7 @@ async function discoverIntentLeads(options) {
             if (leads.length >= limit) break;
             const username = userPath.replace(/\//g, '');
             if (!username || seen.has(username)) continue;
+            if (excludeInstagrams.has(username.toLowerCase())) continue;
             seen.add(username);
 
             await page.goto(`https://www.instagram.com/${username}/`, { waitUntil: 'domcontentloaded' });

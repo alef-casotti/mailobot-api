@@ -1,8 +1,7 @@
 {
-  "//": "Configuração de segurança OpenClaw para o projeto mailobot",
+  "//": "Configuração OpenClaw para intenção de compra - apenas browser",
   "//": "Use: OPENCLAW_CONFIG_PATH=./config/openclaw.json openclaw gateway",
-  "//": "Caminhos sensíveis (~/.ssh, ~/.aws, ~/.config, ~/.gnupg, ~/.kube, /etc) não são montados no sandbox",
-  "//": "Para permitir edição de código: altere workspaceAccess para 'rw' e adicione write, edit, apply_patch em tools.allow",
+  "//": "O agente usa browser para extrair leads; o script mailobot salva no banco",
 
   "agents": {
     "defaults": {
@@ -18,10 +17,7 @@
   "tools": {
     "allow": [
       "read",
-      "web_search",
-      "web_fetch",
-      "sessions_list",
-      "session_status"
+      "browser"
     ],
     "deny": [
       "write",
@@ -31,6 +27,10 @@
       "bash",
       "process",
       "gateway",
+      "web_search",
+      "web_fetch",
+      "sessions_list",
+      "session_status",
       "group:nodes",
       "group:memory"
     ],
@@ -44,10 +44,7 @@
       "tools": {
         "allow": [
           "read",
-          "web_search",
-          "web_fetch",
-          "sessions_list",
-          "session_status"
+          "browser"
         ],
         "deny": [
           "write",

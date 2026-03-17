@@ -11,6 +11,7 @@ const QUEUE_NAMES = {
   NEGOCIO_LOCAL: 'lead-discovery-maps',
   DESCOBERTA_NO_INSTAGRAM: 'lead-discovery-instagram',
   INTENCAO_DE_COMPRA: 'lead-discovery-intent',
+  EMPRESAS_LINKEDIN: 'lead-discovery-linkedin',
 };
 
 /**
