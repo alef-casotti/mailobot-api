@@ -23,7 +23,7 @@ function authMiddleware(req, res, next) {
 function validateCampaign(body, isUpdate = false) {
   const errors = [];
   const required = isUpdate ? [] : ['user_id', 'nome', 'tipo', 'data_de_inicio', 'data_de_termino'];
-  const validTypes = ['NEGOCIO_LOCAL', 'DESCOBERTA_NO_INSTAGRAM', 'INTENCAO_DE_COMPRA'];
+  const validTypes = ['NEGOCIO_LOCAL', 'DESCOBERTA_NO_INSTAGRAM', 'INTENCAO_DE_COMPRA', 'EMPRESAS_LINKEDIN'];
 
   for (const field of required) {
     if (body[field] === undefined || body[field] === null || body[field] === '') {

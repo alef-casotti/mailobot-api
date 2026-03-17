@@ -18,11 +18,14 @@ async function processInstagramJob(job) {
     ? palavras_chave.map((p) => (p.startsWith('#') ? p : `#${p}`))
     : [`#${palavras_chave}`];
 
+  const excludeIdentifiers = await leadsRepo.getExistingIdentifiers();
+
   const leads = await instagramScraper.discoverInstagramProfiles({
     hashtags,
     local: campaign.cidade_alvo,
     seguidores_minimos: filters.seguidores_minimos ?? campaign.seguidores_minimos ?? 0,
     limit: limit || 10,
+    excludeIdentifiers,
   });
 
   let saved = 0;

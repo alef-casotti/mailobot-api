@@ -74,7 +74,7 @@ Cria uma nova campanha. O scheduler passará a processá-la automaticamente.
 |-------|------|-------------|-----------|
 | user_id | number | Sim | Identificador do usuário |
 | nome | string | Sim | Nome da campanha |
-| tipo | string | Sim | `NEGOCIO_LOCAL`, `DESCOBERTA_NO_INSTAGRAM` ou `INTENCAO_DE_COMPRA` |
+| tipo | string | Sim | `NEGOCIO_LOCAL`, `DESCOBERTA_NO_INSTAGRAM`, `INTENCAO_DE_COMPRA` ou `EMPRESAS_LINKEDIN` |
 | data_de_inicio | string | Sim | Data de início (YYYY-MM-DD) |
 | data_de_termino | string | Sim | Data de término (YYYY-MM-DD) |
 | cidade_alvo | string | Não | Cidade alvo (recomendado para NEGOCIO_LOCAL) |
@@ -269,6 +269,30 @@ Encontra usuários que comentam em posts de determinadas hashtags — sinal de i
 }
 ```
 
+### EMPRESAS_LINKEDIN (empresas no LinkedIn)
+
+Encontra empresas no LinkedIn baseado em palavras-chave e localização.
+
+- **Recomendado:** `palavras_chave` — termos de busca (ex: `["tecnologia", "software"]`).
+- **Opcional:** `cidade_alvo` — inclui localização na busca.
+- **Dados extraídos:** nome, URL LinkedIn, indústria, nº funcionários, site, descrição, localização.
+- **Requisito:** `LINKEDIN_USER` e `LINKEDIN_PASSWORD` no `.env` (login obrigatório).
+- **Origem:** `linkedin`.
+
+**Exemplo otimizado:**
+```json
+{
+  "user_id": 1,
+  "nome": "Empresas Tech São Paulo",
+  "tipo": "EMPRESAS_LINKEDIN",
+  "palavras_chave": ["tecnologia", "software", "saas"],
+  "cidade_alvo": "São Paulo",
+  "meta_de_leads_diarios": 15,
+  "data_de_inicio": "2025-03-01",
+  "data_de_termino": "2025-03-31"
+}
+```
+
 ---
 
 ## Comportamento do Sistema
@@ -298,8 +322,8 @@ flowchart TB
 
 - **Scheduler:** Roda a cada 10 minutos; processa apenas campanhas com `status = 'ativo'` e dentro do período (`data_de_inicio` ≤ hoje ≤ `data_de_termino`).
 - **Limite por job:** Máximo 20 leads por execução. O scheduler usa `Math.min(deficit, 20)`.
-- **Desduplicação:** Leads com mesmo telefone, Instagram ou email não são salvos (evita duplicatas entre campanhas).
-- **Requisito mínimo:** Lead precisa ter ao menos um de: telefone, Instagram ou email.
+- **Desduplicação:** Leads com mesmo telefone, Instagram, email ou linkedin_url não são salvos (evita duplicatas entre campanhas).
+- **Requisito mínimo:** Lead precisa ter ao menos um de: telefone, Instagram, email ou linkedin_url.
 
 ---
 

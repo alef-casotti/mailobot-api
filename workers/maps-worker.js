@@ -18,12 +18,15 @@ async function processMapsJob(job) {
     ? [campaign.cidade_alvo, ...palavras_chave].filter(Boolean).join(' ')
     : `${campaign.cidade_alvo} ${palavras_chave}`.trim();
 
+  const excludeIdentifiers = await leadsRepo.getExistingIdentifiers();
+
   const leads = await mapsScraper.discoverLocalBusinessLeads({
     query: query || campaign.cidade_alvo,
     cidade_alvo: campaign.cidade_alvo,
     palavras_chave: Array.isArray(palavras_chave) ? palavras_chave : [palavras_chave],
     seguidores_minimos: filters.seguidores_minimos ?? campaign.seguidores_minimos ?? 0,
     limit: limit || 10,
+    excludeIdentifiers,
   });
 
   let saved = 0;
@@ -33,6 +36,7 @@ async function processMapsJob(job) {
       nome: lead.nome,
       telefone: lead.telefone,
       instagram: lead.instagram,
+      email: lead.email,
       seguidores: lead.seguidores,
       cidade: lead.cidade,
       origem: lead.origem,

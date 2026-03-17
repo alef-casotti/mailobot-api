@@ -1,5 +1,5 @@
 const { chromium } = require('playwright');
-const { extractInstagramHandle, hasWhatsAppLink, extractPhoneFromWhatsAppLink, parseFollowersCount } = require('../utils/helpers');
+const { extractInstagramHandle, hasWhatsAppLink, extractPhoneFromWhatsAppLink, parseFollowersCount, normalizePhone } = require('../utils/helpers');
 const logger = require('../utils/logger');
 
 const HEADLESS = process.env.PLAYWRIGHT_HEADLESS !== 'false';
@@ -11,10 +11,10 @@ function sleep(ms) {
 }
 
 /**
- * Pesquisa no Google Maps e extrai negócios com link do Instagram
+ * Pesquisa no Google Maps e extrai negócios com Instagram ou telefone
  * @param {string} query - Ex: "barbearias Niterói"
  * @param {number} limit - Máximo de resultados
- * @returns {Promise<Array<{nome, endereco, instagram, site}>>}
+ * @returns {Promise<Array<{nome, endereco, instagram, site, telefone}>>}
  */
 async function searchGoogleMaps(query, limit = 20) {
   const browser = await chromium.launch({ headless: HEADLESS });
@@ -29,7 +29,7 @@ async function searchGoogleMaps(query, limit = 20) {
     page.setDefaultTimeout(TIMEOUT_MS);
 
     const mapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(query)}`;
-    await page.goto(mapsUrl, { waitUntil: 'networkidle' });
+    await page.goto(mapsUrl, { waitUntil: 'domcontentloaded' });
     await sleep(DELAY_MS);
 
     const panelSelector = 'div[role="feed"]';
@@ -49,11 +49,35 @@ async function searchGoogleMaps(query, limit = 20) {
         await item.click();
         await sleep(1500);
 
-        const nameEl = await page.$('h1');
-        const name = nameEl ? (await nameEl.textContent()).trim() : '';
+        let nameEl = await page.$('h1.DUwDvf.lfPIob') || await page.$('h1');
+        let name = nameEl ? (await nameEl.textContent()).trim() : '';
+        if (name === 'Resultados') {
+          const allH1s = await page.$$('h1');
+          if (allH1s.length > 1) {
+            name = (await allH1s[1].textContent()).trim();
+          }
+        }
 
         const addressEl = await page.$('[data-item-id="address"]');
         const endereco = addressEl ? (await addressEl.textContent()).trim() : '';
+
+        let telefone = null;
+        const telLink = await page.$('a[href^="tel:"]');
+        if (telLink) {
+          const href = await telLink.getAttribute('href');
+          if (href) {
+            const num = href.replace(/^tel:/i, '').replace(/\D/g, '');
+            if (num.length >= 10) telefone = num;
+          }
+        }
+        if (!telefone) {
+          const phoneBtn = await page.$('button[data-item-id^="phone:"]');
+          if (phoneBtn) {
+            const dataId = await phoneBtn.getAttribute('data-item-id');
+            const match = dataId && dataId.match(/tel:(\d+)/);
+            if (match && match[1].length >= 10) telefone = match[1];
+          }
+        }
 
         const links = await page.$$eval('a[href]', (as) =>
           as.map((a) => ({ href: a.href, text: a.textContent?.trim() || '' }))
@@ -71,8 +95,8 @@ async function searchGoogleMaps(query, limit = 20) {
           }
         }
 
-        if (name && (instagram || site)) {
-          results.push({ nome: name, endereco, instagram, site });
+        if (name && (instagram || telefone)) {
+          results.push({ nome: name, endereco, instagram, site, telefone });
           count++;
         }
       } catch (e) {
@@ -132,7 +156,7 @@ async function getInstagramProfileInfo(username) {
 
 /**
  * Fluxo completo: Maps -> Instagram -> leads qualificados
- * @param {object} options - { query, cidade_alvo, palavras_chave, seguidores_minimos, limit }
+ * @param {object} options - { query, cidade_alvo, palavras_chave, seguidores_minimos, limit, excludeIdentifiers }
  */
 async function discoverLocalBusinessLeads(options) {
   const {
@@ -141,19 +165,39 @@ async function discoverLocalBusinessLeads(options) {
     palavras_chave = [],
     seguidores_minimos = 0,
     limit = 10,
+    excludeIdentifiers = {},
   } = options;
+
+  const excludeInstagrams = excludeIdentifiers.instagrams || new Set();
+  const excludeTelefones = excludeIdentifiers.telefones || new Set();
 
   const searchQuery = query || [cidade_alvo, ...palavras_chave].filter(Boolean).join(' ');
   if (!searchQuery.trim()) {
     throw new Error('Query or cidade_alvo + palavras_chave required');
   }
 
-  const businesses = await searchGoogleMaps(searchQuery, Math.min(limit * 3, 30));
+  const businesses = await searchGoogleMaps(searchQuery, Math.min(limit * 5, 50));
   const leads = [];
 
   for (const biz of businesses) {
     if (leads.length >= limit) break;
-    if (!biz.instagram) continue;
+    if (seguidores_minimos > 0 && !biz.instagram) continue;
+
+    if (biz.instagram && excludeInstagrams.has(biz.instagram.toLowerCase())) continue;
+    if (biz.telefone && excludeTelefones.has(normalizePhone(biz.telefone))) continue;
+
+    if (seguidores_minimos === 0) {
+      if (!biz.instagram && !biz.telefone) continue;
+      leads.push({
+        nome: biz.nome,
+        instagram: biz.instagram || null,
+        seguidores: 0,
+        cidade: cidade_alvo || biz.endereco,
+        origem: 'google_maps',
+        telefone: biz.telefone || null,
+      });
+      continue;
+    }
 
     try {
       const profile = await getInstagramProfileInfo(biz.instagram);
@@ -161,7 +205,7 @@ async function discoverLocalBusinessLeads(options) {
       const meetsWhatsApp = profile.hasWhatsApp;
 
       if (meetsFollowers && meetsWhatsApp) {
-        const telefone = extractPhoneFromWhatsAppLink(profile.bio) || null;
+        const telefone = extractPhoneFromWhatsAppLink(profile.bio) || biz.telefone || null;
         leads.push({
           nome: biz.nome,
           instagram: biz.instagram,

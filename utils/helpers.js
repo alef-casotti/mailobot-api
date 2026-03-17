@@ -31,7 +31,8 @@ function extractUrls(text) {
 function hasWhatsAppLink(text) {
   if (!text) return false;
   const whatsappPatterns = [
-    /wa\.me\//i,
+    /wa\.me/i,
+    /wa\.link/i,
     /whatsapp\.com/i,
     /api\.whatsapp\.com/i,
     /bit\.ly\/.*whatsapp/i,
@@ -46,7 +47,8 @@ function hasWhatsAppLink(text) {
  */
 function extractPhoneFromWhatsAppLink(text) {
   if (!text) return null;
-  const match = text.match(/(?:wa\.me|api\.whatsapp\.com\/send\?phone=)(\d{10,15})/i);
+  // wa.me/ ou wa.me%2F (URL encoded) + dígitos; api.whatsapp.com/send?phone=
+  const match = text.match(/(?:wa\.me(?:\/|%2F)|api\.whatsapp\.com\/send\?phone=)(\d{10,15})/i);
   return match ? match[1] : null;
 }
 
@@ -115,7 +117,23 @@ function endOfDay(date = new Date()) {
  */
 function parseFollowersCount(str) {
   if (!str || typeof str !== 'string') return 0;
-  const cleaned = str.replace(/[\s,]/g, '').toUpperCase();
+  const trimmed = str.trim().replace(/\u00A0/g, ' ');
+  // "1 mil", "1,5 mil", "1.5 mil" - parse antes de remover vírgula (1,5 = 1.5)
+  const milMatch = trimmed.match(/([\d.,]+)\s*mil(?!h)/i);
+  if (milMatch) {
+    const num = parseFloat(milMatch[1].replace(',', '.'));
+    return Math.floor(num * 1000);
+  }
+  // "1 milhão", "1,5 milhões", "1 milhao"
+  const milhaoMatch = trimmed.match(/([\d.,]+)\s*milh[oãaõ]o?e?s?/i);
+  if (milhaoMatch) {
+    const num = parseFloat(milhaoMatch[1].replace(',', '.'));
+    return Math.floor(num * 1000000);
+  }
+  const cleaned = trimmed.replace(/[\s,]/g, '').toUpperCase();
+  // 1.749, 12.345 = separador de milhar (locale PT)
+  const thousandsMatch = cleaned.match(/^(\d+)\.(\d{3})$/);
+  if (thousandsMatch) return parseInt(thousandsMatch[1] + thousandsMatch[2], 10);
   const match = cleaned.match(/^([\d.]+)([KM])?$/);
   if (!match) return 0;
   let num = parseFloat(match[1]);
