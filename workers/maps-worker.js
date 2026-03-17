@@ -3,6 +3,7 @@ const { createWorker, QUEUE_NAMES } = require('../queue/redis');
 const mapsScraper = require('../scrapers/maps-scraper');
 const campaignsRepo = require('../database/campaigns-repository');
 const leadsRepo = require('../database/leads-repository');
+const scraperStateRepo = require('../database/scraper-state-repository');
 const logger = require('../utils/logger');
 
 async function processMapsJob(job) {
@@ -19,15 +20,21 @@ async function processMapsJob(job) {
     : `${campaign.cidade_alvo} ${palavras_chave}`.trim();
 
   const excludeIdentifiers = await leadsRepo.getExistingIdentifiers();
+  const resumeFromPlaceIdentifier = await scraperStateRepo.getLastProcessedPlace(campaign_id);
 
-  const leads = await mapsScraper.discoverLocalBusinessLeads({
+  const { leads, lastProcessedIdentifier } = await mapsScraper.discoverLocalBusinessLeads({
     query: query || campaign.cidade_alvo,
     cidade_alvo: campaign.cidade_alvo,
     palavras_chave: Array.isArray(palavras_chave) ? palavras_chave : [palavras_chave],
     seguidores_minimos: filters.seguidores_minimos ?? campaign.seguidores_minimos ?? 0,
     limit: limit || 10,
     excludeIdentifiers,
+    resumeFromPlaceIdentifier,
   });
+
+  if (lastProcessedIdentifier) {
+    await scraperStateRepo.saveLastProcessedPlace(campaign_id, lastProcessedIdentifier);
+  }
 
   let saved = 0;
   for (const lead of leads) {
