@@ -105,7 +105,7 @@ async function run() {
     // 4. Executar Maps (e opcionalmente full)
     if (mode === 'maps') {
       console.log('\n--- Executando searchGoogleMaps ---');
-      const businesses = await mapsScraper.searchGoogleMaps(options.query, 10);
+      const { results: businesses } = await mapsScraper.searchGoogleMaps(options.query, 10);
       console.log(`  Negócios encontrados: ${businesses.length}`);
       const comInstagram = businesses.filter((b) => b.instagram);
       const semInstagram = businesses.length - comInstagram.length;
@@ -127,7 +127,7 @@ async function run() {
     if (mode === 'full') {
       console.log('\n--- Executando discoverLocalBusinessLeads (Maps + Instagram) ---');
       const excludeIdentifiers = await require('../database/leads-repository').getExistingIdentifiers();
-      const leads = await mapsScraper.discoverLocalBusinessLeads({ ...options, excludeIdentifiers });
+      const { leads } = await mapsScraper.discoverLocalBusinessLeads({ ...options, excludeIdentifiers });
       console.log(`  Leads qualificados: ${leads.length}`);
       if (leads.length > 0) {
         console.log('\n  Leads:');

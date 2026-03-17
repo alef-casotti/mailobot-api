@@ -10,13 +10,24 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+function normalizePlaceHref(href) {
+  if (!href || typeof href !== 'string') return '';
+  try {
+    const url = href.startsWith('http') ? new URL(href) : new URL(href, 'https://www.google.com');
+    return url.pathname.toLowerCase().replace(/\/$/, '');
+  } catch {
+    return href;
+  }
+}
+
 /**
  * Pesquisa no Google Maps e extrai negócios com Instagram ou telefone
  * @param {string} query - Ex: "barbearias Niterói"
  * @param {number} limit - Máximo de resultados
- * @returns {Promise<Array<{nome, endereco, instagram, site, telefone}>>}
+ * @param {string|null} resumeFromPlaceIdentifier - Se informado, pula itens até passar deste (retomar de onde parou)
+ * @returns {Promise<{results: Array, lastProcessedIdentifier: string|null}>}
  */
-async function searchGoogleMaps(query, limit = 20) {
+async function searchGoogleMaps(query, limit = 20, resumeFromPlaceIdentifier = null) {
   const browser = await chromium.launch({ headless: HEADLESS });
   const context = await browser.newContext({
     userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -24,6 +35,7 @@ async function searchGoogleMaps(query, limit = 20) {
   });
 
   const results = [];
+  let lastProcessedIdentifier = null;
   try {
     const page = await context.newPage();
     page.setDefaultTimeout(TIMEOUT_MS);
@@ -35,16 +47,54 @@ async function searchGoogleMaps(query, limit = 20) {
     const panelSelector = 'div[role="feed"]';
     await page.waitForSelector(panelSelector, { timeout: 10000 }).catch(() => null);
 
+    // Scroll no feed para carregar mais resultados (Google Maps usa infinite scroll)
+    const feed = await page.$(panelSelector);
+    if (feed) {
+      let prevCount = 0;
+      let stableCount = 0;
+      const maxScrolls = 15;
+
+      for (let i = 0; i < maxScrolls; i++) {
+        const currentItems = await page.$$('a[href*="/maps/place/"]');
+        const count = currentItems.length;
+
+        if (count === prevCount) {
+          stableCount++;
+          if (stableCount >= 2) break;
+        } else {
+          stableCount = 0;
+        }
+        prevCount = count;
+
+        if (count >= limit) break;
+
+        await feed.evaluate((el) => {
+          el.scrollTop = el.scrollHeight;
+        });
+        await sleep(800);
+      }
+    }
+
     const items = await page.$$('a[href*="/maps/place/"]');
     const seen = new Set();
+    const seenResults = new Set();
     let count = 0;
+    let passedResumePoint = !resumeFromPlaceIdentifier;
 
     for (const item of items) {
       if (count >= limit) break;
       try {
         const href = await item.getAttribute('href');
-        if (!href || seen.has(href)) continue;
-        seen.add(href);
+        const normHref = normalizePlaceHref(href);
+        if (!normHref || seen.has(normHref)) continue;
+        seen.add(normHref);
+
+        if (!passedResumePoint) {
+          if (normHref === resumeFromPlaceIdentifier) {
+            passedResumePoint = true;
+          }
+          continue;
+        }
 
         await item.click();
         await sleep(1500);
@@ -96,9 +146,16 @@ async function searchGoogleMaps(query, limit = 20) {
         }
 
         if (name && (instagram || telefone)) {
+          const dedupeKey = telefone
+            ? `${name.toLowerCase().trim()}|${telefone}`
+            : `${name.toLowerCase().trim()}|${(endereco || '').toLowerCase().trim()}`;
+          if (seenResults.has(dedupeKey)) continue;
+          seenResults.add(dedupeKey);
+
           results.push({ nome: name, endereco, instagram, site, telefone });
           count++;
         }
+        lastProcessedIdentifier = normHref;
       } catch (e) {
         logger.debug({ err: e.message }, 'Error extracting business');
       }
@@ -110,7 +167,7 @@ async function searchGoogleMaps(query, limit = 20) {
     throw err;
   }
 
-  return results;
+  return { results, lastProcessedIdentifier };
 }
 
 /**
@@ -156,7 +213,8 @@ async function getInstagramProfileInfo(username) {
 
 /**
  * Fluxo completo: Maps -> Instagram -> leads qualificados
- * @param {object} options - { query, cidade_alvo, palavras_chave, seguidores_minimos, limit, excludeIdentifiers }
+ * @param {object} options - { query, cidade_alvo, palavras_chave, seguidores_minimos, limit, excludeIdentifiers, resumeFromPlaceIdentifier }
+ * @returns {Promise<{leads: Array, lastProcessedIdentifier: string|null}>}
  */
 async function discoverLocalBusinessLeads(options) {
   const {
@@ -166,6 +224,7 @@ async function discoverLocalBusinessLeads(options) {
     seguidores_minimos = 0,
     limit = 10,
     excludeIdentifiers = {},
+    resumeFromPlaceIdentifier = null,
   } = options;
 
   const excludeInstagrams = excludeIdentifiers.instagrams || new Set();
@@ -176,7 +235,11 @@ async function discoverLocalBusinessLeads(options) {
     throw new Error('Query or cidade_alvo + palavras_chave required');
   }
 
-  const businesses = await searchGoogleMaps(searchQuery, Math.min(limit * 5, 50));
+  const { results: businesses, lastProcessedIdentifier } = await searchGoogleMaps(
+    searchQuery,
+    Math.min(limit * 5, 50),
+    resumeFromPlaceIdentifier
+  );
   const leads = [];
 
   for (const biz of businesses) {
@@ -221,7 +284,7 @@ async function discoverLocalBusinessLeads(options) {
     }
   }
 
-  return leads;
+  return { leads, lastProcessedIdentifier };
 }
 
 module.exports = {
